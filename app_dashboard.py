@@ -1,16 +1,16 @@
 import streamlit as st
 import google.generativeai as genai
+from streamlit_mic_recorder import mic_recorder
 import json
 import os
 
-# 1. Page Configuration Setup
-st.set_page_config(page_title="Vidya v3 Live POC", layout="wide", page_icon="🤖")
-
-st.title("🤖 Vidya v3: Live Intelligent Tutor POC")
-st.subheader("Autonomous Cognitive State Machine & Multi-Turn Conversation Thread")
+# --- 1. PAGE ARCHITECTURE SETUP ---
+st.set_page_config(page_title="Vidya v3 Live Multimodal POC", layout="wide", page_icon="🎙️")
+st.title("🎙️ Vidya v3: Universal Voice & Text Live POC")
+st.subheader("Cloud-Deployed Multi-Modal Browser Interface")
 st.markdown("---")
 
-# 2. Secure API Key Initialization (Looks for Streamlit Secrets or local Environment)
+# --- 2. SECURE API HANDSHAKE ---
 api_key = None
 if "GEMINI_API_KEY" in os.environ and os.environ["GEMINI_API_KEY"]:
     api_key = os.environ["GEMINI_API_KEY"]
@@ -20,7 +20,7 @@ elif "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
 if api_key:
     genai.configure(api_key=api_key)
 
-# 3. Initialize Persistent Memory State Channels
+# --- 3. PERSISTENT STATE MANAGEMENT CHANNELS ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
         {"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL"}
@@ -30,93 +30,145 @@ if "telemetry" not in st.session_state:
         "friction": "LOW 🟢", "confidence": "NEUTRAL 💾", "motivation": "INTRINSIC 🎯", "frustration": "0/10", "register": "ENGLISH (Formal)", "phase": "MODEL"
     }
 
-# --- SIDEBAR CONTROL ENGINE ---
-st.sidebar.header("🕹️ POC Runtime Diagnostics")
-selected_tier = st.sidebar.selectbox("Simulated Student ICP Tier", ["Low-Wage Tier (Hinglish/Hindi Scaffolding)", "High-Wage Tier (Advanced Engineering)"])
+# --- 4. RUNTIME DIAGNOSTICS CONTROL PANEL ---
+st.sidebar.header("🕹️ Global Run Options")
+selected_tier = st.sidebar.selectbox("Student Tier Profile", ["Low-Wage Tier", "High-Wage Tier"])
 
-if st.sidebar.button("🧹 Clear & Reset State Machine"):
+if st.sidebar.button("🧹 Reset Shared Session"):
     st.session_state.chat_history = [{"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL"}]
     st.session_state.telemetry = {"friction": "LOW 🟢", "confidence": "NEUTRAL 💾", "motivation": "INTRINSIC 🎯", "frustration": "0/10", "register": "ENGLISH (Formal)", "phase": "MODEL"}
     st.rerun()
 
-# --- MAIN CONVERSATION DISPLAYER ---
-st.subheader("💬 Active Multi-Turn Conversation History")
+# --- 5. ACTIVE MULTI-TURN CONVERSATION STREAM ---
+st.subheader("💬 Active Multi-Turn Script")
 for msg in st.session_state.chat_history:
     avatar = "🤖" if msg["role"] == "assistant" else "👤"
     with st.chat_message(msg["role"], avatar=avatar):
         tag = f" `[{msg.get('phase', '')}]`" if msg["role"] == "assistant" else ""
-        st.markdown(f"**{ 'Vidya Tutor AI' if msg['role']=='assistant' else 'Student Input' }{tag}:** {msg['text']}")
+        st.markdown(f"**{'Vidya Tutor AI' if msg['role']=='assistant' else 'Student'}{tag}:** {msg['text']}")
+        
+        # If the assistant spoke and has attached voice data, render the native browser audio player
+        if msg["role"] == "assistant" and "audio_bytes" in msg and msg["audio_bytes"]:
+            st.audio(msg["audio_bytes"], format="audio/mp3")
 
 st.markdown("---")
 
-# --- LIVE INTELLIGENT INFERENCE PIPELINE ---
-if not api_key:
-    st.error("❌ API key missing. Please add your GEMINI_API_KEY in the Streamlit cloud advanced setting secrets console.")
-else:
-    if user_input := st.chat_input("Type your student answer here..."):
-        # Log student's text instantly
-        st.session_state.chat_history.append({"role": "user", "text": user_input})
-        
-        # Build the background instruction profile based on your prompt frameworks
-        system_instruction = f"""
-        You are Vidya v3, an AI tutor evaluating a student on Python scopes.
-        Current Context: Student is classified under {selected_tier}.
-        
-        Your task is to analyze the student text and output a strict, valid JSON block matching this layout:
-        {{
-            "tutor_response": "Your immediate response text following the Cognitive Apprenticeship Model framework",
-            "cognitive_friction": "HIGH or LOW",
-            "confidence_level": "HIGH or LOW or NEUTRAL",
-            "motivation_profile": "INTRINSIC or EXTRINSIC or DEFENSIVE",
-            "frustration_index": "Scale from 1 to 10",
-            "pedagogical_phase": "MODEL or COACH or SCAFFOLD or FADE",
-            "target_register": "ENGLISH or HINGLISH"
-        }}
-        
-        CRITICAL RULES:
-        1. If tier is Low-Wage and cognitive friction is HIGH or user shows deep confusion, switch register to Hinglish immediately.
-        2. Keep your tutor response concise.
-        """
-        
-        try:
-            with st.spinner("Analyzing psycholinguistic vectors & generating streaming inference..."):
-                model = genai.GenerativeModel(
-                    model_name="gemini-2.5-flash",
-                    system_instruction=system_instruction,
-                    generation_config={"response_mime_type": "application/json", "temperature": 0.0}
-                )
-                
-                # Format full thread history context to pass to Gemini
-                formatted_prompt = f"Full Thread History:\n{json.dumps(st.session_state.chat_history)}\n\nLatest Input: {user_input}"
-                response = model.generate_content(formatted_prompt)
-                
-                # Parse deterministic data schemas
-                result = json.loads(response.text)
-                
-                # Update visual telemetry metrics
-                st.session_state.telemetry = {
-                    "friction": f"{result.get('cognitive_friction', 'LOW')} 🧠",
-                    "confidence": f"{result.get('confidence_level', 'NEUTRAL')} 📊",
-                    "motivation": f"{result.get('motivation_profile', 'INTRINSIC')} 🎯",
-                    "frustration": f"{result.get('frustration_index', '0')}/10 ⚠️",
-                    "register": result.get('target_register', 'ENGLISH'),
-                    "phase": result.get('pedagogical_phase', 'COACH')
-                }
-                
-                # Append the response to the persistent thread
-                st.session_state.chat_history.append({
-                    "role": "assistant", 
-                    "text": result.get("tutor_response", ""), 
-                    "phase": result.get("pedagogical_phase", "COACH")
-                })
-                
-                st.rerun()
-                
-        except Exception as e:
-            st.error(f"Inference Thread Halted: {e}")
+# --- 6. UNIFIED AUDIO/TEXT INPUT CAPTURE LAYER ---
+st.subheader("📥 Submit Response")
+col_text, col_voice = st.columns([4, 1])
+raw_user_payload = None
 
-# --- REAL-TIME VISUALIZATION TELEMETRY LAYER ---
-st.subheader("📊 Dynamic Layer Analysis")
+with col_text:
+    text_input = st.chat_input("Type your answer here...")
+    if text_input:
+        raw_user_payload = {"type": "text", "data": text_input}
+
+with col_voice:
+    # Captures physical microphone streams directly from the end-user's browser engine
+    audio_record = mic_recorder(
+        start_prompt="🎙️ Click to Record",
+        stop_prompt="🛑 Stop Recording",
+        key="browser_mic",
+        use_container_width=True
+    )
+    if audio_record:
+        raw_user_payload = {"type": "audio", "data": audio_record["bytes"]}
+
+# --- 7. RECURRENT INFERENCE & COGNITIVE PIPELINE ---
+if raw_user_payload and api_key:
+    try:
+        with st.spinner("Processing cognitive vectors & structuring multimodal data..."):
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            
+            # --- PHASE A: AUDIO SPEECH-TO-TEXT RESOLUTION ---
+            if raw_user_payload["type"] == "audio":
+                audio_part = {"mime_type": "audio/wav", "data": raw_user_payload["data"]}
+                transcription_prompt = "Transcribe this student audio response accurately. Output only the text transcription, nothing else."
+                trans_res = model.generate_content([audio_part, transcription_prompt])
+                processed_text = trans_res.text.strip()
+            else:
+                processed_text = raw_user_payload["data"]
+
+            # Log the resolved student turn to history tracking state
+            st.session_state.chat_history.append({"role": "user", "text": processed_text})
+
+            # --- PHASE B: PSYCHOLINGUISTIC EVALUATION AND METRICS INFERENCE ---
+            system_instruction = f"""
+            You are Vidya v3, an expert AI tutor evaluating a student on Python execution scopes and functional states.
+            Current Context: Student is classified under the {selected_tier}.
+            
+            Analyze the conversation history alongside the student's latest response. You MUST generate a strict, single, valid JSON block following this schema:
+            {{
+                "tutor_response": "Your immediate response text following the Cognitive Apprenticeship Model framework",
+                "cognitive_friction": "HIGH or LOW",
+                "confidence_level": "HIGH or LOW or NEUTRAL",
+                "motivation_profile": "INTRINSIC or EXTRINSIC or DEFENSIVE",
+                "frustration_index": "Scale from 1 to 10",
+                "pedagogical_phase": "MODEL or COACH or SCAFFOLD or FADE",
+                "target_register": "ENGLISH or HINGLISH"
+            }}
+            
+            CRITICAL RULES:
+            1. Keep your tutor_response extremely concise, punchy, and dialogic.
+            2. If the tier is Low-Wage Tier and cognitive friction is HIGH or user shows linguistic confusion, transition your target register and reply string to Hinglish immediately.
+            """
+            
+            history_context = f"Full Thread History:\n{json.dumps(st.session_state.chat_history)}\n\nLatest Student Phrase: {processed_text}"
+            
+            agent_res = model.generate_content(
+                history_context, 
+                generation_config={
+                    "response_mime_type": "application/json", 
+                    "system_instruction": system_instruction, 
+                    "temperature": 0.0
+                }
+            )
+            result = json.loads(agent_res.text)
+            tutor_reply = result.get("tutor_response", "")
+
+            # --- PHASE C: WEB-NATIVE TEXT-TO-SPEECH GENERATION ---
+            tts_prompt = f"Read the following tutor text out loud with a clear, professional, natural cadence. Do not output anything except audio. Text: {tutor_reply}"
+            audio_gen_res = model.generate_content(
+                tts_prompt,
+                generation_config={"response_mime_type": "audio/mp3"}
+            )
+            
+            # Extract voice file bytes directly from Gemini content blocks
+            voice_bytes = None
+            try:
+                for part in audio_gen_res.candidates[0].content.parts:
+                    if part.inline_data:
+                        voice_bytes = part.inline_data.data
+            except Exception:
+                pass
+
+            # --- PHASE D: ENGINE STATE RETRIEVAL AND UPDATE ---
+            st.session_state.telemetry = {
+                "friction": f"{result.get('cognitive_friction', 'LOW')} 🧠",
+                "confidence": f"{result.get('confidence_level', 'NEUTRAL')} 📊",
+                "motivation": f"{result.get('motivation_profile', 'INTRINSIC')} 🎯",
+                "frustration": f"{result.get('frustration_index', '0')}/10 ⚠️",
+                "register": result.get('target_register', 'ENGLISH'),
+                "phase": result.get('pedagogical_phase', 'COACH')
+            }
+            
+            new_assistant_turn = {
+                "role": "assistant", 
+                "text": tutor_reply, 
+                "phase": result.get("pedagogical_phase", "COACH")
+            }
+            if voice_bytes:
+                new_assistant_turn["audio_bytes"] = voice_bytes
+                
+            st.session_state.chat_history.append(new_assistant_turn)
+            st.rerun()
+
+    except Exception as e:
+        st.error(f"Inference Failure: {e}")
+
+# --- 8. REAL-TIME TELEMETRY GRAPHICS VISUALIZATION ---
+st.markdown("---")
+st.subheader("📊 Dynamic Analytics Layer")
 c1, c2, c3 = st.columns(3)
 with c1:
     st.metric("Cognitive Working Load", st.session_state.telemetry["friction"])
