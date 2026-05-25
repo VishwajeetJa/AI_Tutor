@@ -25,12 +25,15 @@ if api_key:
 # --- 3. PERSISTENT STATE MANAGEMENT CHANNELS ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
-        {"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL", "audio_bytes": None}
+        {"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL"}
     ]
 if "telemetry" not in st.session_state:
     st.session_state.telemetry = {
         "friction": "LOW 🟢", "confidence": "NEUTRAL 💾", "motivation": "INTRINSIC 🎯", "frustration": "0/10", "register": "ENGLISH (Formal)", "phase": "MODEL"
     }
+# Single-use active play token to prevent repeat audio spam
+if "active_audio_playback" not in st.session_state:
+    st.session_state.active_audio_playback = None
 if "pending_user_input" not in st.session_state:
     st.session_state.pending_user_input = None
 if "last_processed_audio_key" not in st.session_state:
@@ -41,10 +44,11 @@ st.sidebar.header("🕹️ Global Run Options")
 selected_tier = st.sidebar.selectbox("Student Tier Profile", ["Low-Wage Tier", "High-Wage Tier"])
 
 if st.sidebar.button("🧹 Reset Shared Session"):
-    st.session_state.chat_history = [{"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL", "audio_bytes": None}]
+    st.session_state.chat_history = [{"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL"}]
     st.session_state.telemetry = {"friction": "LOW 🟢", "confidence": "NEUTRAL 💾", "motivation": "INTRINSIC 🎯", "frustration": "0/10", "register": "ENGLISH (Formal)", "phase": "MODEL"}
     st.session_state.last_processed_audio_key = None
     st.session_state.pending_user_input = None
+    st.session_state.active_audio_playback = None
     st.rerun()
 
 # --- 5. ACTIVE MULTI-TURN CONVERSATION STREAM ---
@@ -52,13 +56,9 @@ st.subheader("💬 Active Multi-Turn Script")
 for msg in st.session_state.chat_history:
     avatar = "🤖" if msg["role"] == "assistant" else "👤"
     with st.chat_message(msg["role"], avatar=avatar):
-        # Dynamically draw the current cognitive phase label assigned to that specific response
         tag = f" `[{msg.get('phase', 'COACH')}]`" if msg["role"] == "assistant" else ""
         st.markdown(f"**{'Vidya Tutor AI' if msg['role']=='assistant' else 'Student'}{tag}:** {msg['text']}")
-        
-        # If the response has valid browser audio bytes attached, display the player control block
-        if msg["role"] == "assistant" and msg.get("audio_bytes"):
-            st.audio(msg["audio_bytes"], format="audio/mp3")
+        # ❌ REMOVED: st.audio player from the history loop entirely so voice logs don't clutter the dashboard
 
 st.markdown("---")
 
@@ -130,7 +130,15 @@ if st.session_state.pending_user_input and api_key:
                 3. Keep your tutor_response extremely concise and dialogic.
                 """
                 
-                combined_analytics_prompt = f"{system_instruction}\n\nFull Thread History:\n{json.dumps(st.session_state.chat_history)}\n\nLatest Student Phrase: {processed_text}"
+                clean_serializable_history = []
+                for msg in st.session_state.chat_history:
+                    clean_serializable_history.append({
+                        "role": msg["role"],
+                        "text": msg["text"],
+                        "phase": msg.get("phase", "COACH")
+                    })
+                
+                combined_analytics_prompt = f"{system_instruction}\n\nFull Thread History:\n{json.dumps(clean_serializable_history)}\n\nLatest Student Phrase: {processed_text}"
                 
                 agent_res = base_model.generate_content(
                     combined_analytics_prompt, 
@@ -144,11 +152,12 @@ if st.session_state.pending_user_input and api_key:
                 current_phase = result.get("pedagogical_phase", "COACH")
 
                 # --- PHASE C: HIGH-AVAILABILITY CLOUD TEXT-TO-SPEECH ---
-                # Converts the AI reply text into standard web-playable mp3 format data streams
                 tts = gTTS(text=tutor_reply, lang='en', tld='co.in' if result.get("target_register") == "HINGLISH" else 'com')
                 fp = io.BytesIO()
                 tts.write_to_fp(fp)
-                audio_bytes = fp.getvalue()
+                
+                # Assign the newly generated voice file to the standalone active player token
+                st.session_state.active_audio_playback = fp.getvalue()
 
                 # --- PHASE D: ENGINE STATE RETRIEVAL AND UPDATE ---
                 st.session_state.telemetry = {
@@ -160,19 +169,25 @@ if st.session_state.pending_user_input and api_key:
                     "phase": current_phase
                 }
                 
-                # Append response containing text, specific adaptive phase, and audio track
                 st.session_state.chat_history.append({
                     "role": "assistant", 
                     "text": tutor_reply, 
-                    "phase": current_phase,
-                    "audio_bytes": audio_bytes
+                    "phase": current_phase
                 })
                 st.rerun()
 
     except Exception as e:
         st.error(f"Inference Failure: {e}")
 
-# --- 8. REAL-TIME TELEMETRY GRAPHICS VISUALIZATION ---
+# --- 8. GLOBAL NATIVE AUDIO SPEAKING MODULE ---
+# This block runs only once when a fresh assistant response triggers it, then consumes itself.
+if st.session_state.active_audio_playback:
+    # Render an invisible playback block that executes sound instantly in the user's browser
+    st.audio(st.session_state.active_audio_playback, format="audio/mp3", autoplay=True)
+    # Clear the token after playing so it does not loop on manual browser refreshes
+    st.session_state.active_audio_playback = None
+
+# --- 9. REAL-TIME TELEMETRY GRAPHICS VISUALIZATION ---
 st.markdown("---")
 st.subheader("📊 Dynamic Analytics Layer")
 c1, c2, c3 = st.columns(3)
