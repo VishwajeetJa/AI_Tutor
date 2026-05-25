@@ -9,7 +9,6 @@ import os
 # --- 1. PAGE ARCHITECTURE SETUP ---
 st.set_page_config(page_title="Vidya v3 Live Multimodal POC", layout="wide", page_icon="🎙️")
 st.title("🎙️ Vidya v3: Universal Voice & Text Live POC")
-st.subheader("Cloud-Deployed Multi-Modal Browser Interface")
 st.markdown("---")
 
 # --- 2. SECURE API HANDSHAKE ---
