@@ -11,12 +11,14 @@ st.subheader("Autonomous Cognitive State Machine & Multi-Turn Conversation Threa
 st.markdown("---")
 
 # 2. Secure API Key Initialization (Looks for Streamlit Secrets or local Environment)
-if "GEMINI_API_KEY" in os.environ:
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-elif "GEMINI_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-else:
-    st.configure = None
+api_key = None
+if "GEMINI_API_KEY" in os.environ and os.environ["GEMINI_API_KEY"]:
+    api_key = os.environ["GEMINI_API_KEY"]
+elif "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
+    api_key = st.secrets["GEMINI_API_KEY"]
+
+if api_key:
+    genai.configure(api_key=api_key)
 
 # 3. Initialize Persistent Memory State Channels
 if "chat_history" not in st.session_state:
@@ -28,7 +30,7 @@ if "telemetry" not in st.session_state:
         "friction": "LOW 🟢", "confidence": "NEUTRAL 💾", "motivation": "INTRINSIC 🎯", "frustration": "0/10", "register": "ENGLISH (Formal)", "phase": "MODEL"
     }
 
-# --- SIDEBAR CONTROL CONTROL ENGINE ---
+# --- SIDEBAR CONTROL ENGINE ---
 st.sidebar.header("🕹️ POC Runtime Diagnostics")
 selected_tier = st.sidebar.selectbox("Simulated Student ICP Tier", ["Low-Wage Tier (Hinglish/Hindi Scaffolding)", "High-Wage Tier (Advanced Engineering)"])
 
@@ -48,7 +50,7 @@ for msg in st.session_state.chat_history:
 st.markdown("---")
 
 # --- LIVE INTELLIGENT INFERENCE PIPELINE ---
-if not genai.get_default_api_key():
+if not api_key:
     st.error("❌ API key missing. Please add your GEMINI_API_KEY in the Streamlit cloud advanced setting secrets console.")
 else:
     if user_input := st.chat_input("Type your student answer here..."):
