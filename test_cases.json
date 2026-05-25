@@ -1,0 +1,120 @@
+{
+  "test_cases": [
+    {
+      "id": "ICP_A_1_MODEL",
+      "description": "ICP-A initial conceptual onboarding query on Python scopes",
+      "payload": {
+        "skill_topic": "Python Functions",
+        "mastery_level": 0.1,
+        "icp_type": "high_wage",
+        "ca_phase": "MODEL",
+        "conversation_history": [{ "role": "user", "content": "How do functions handle scope layers inside memory during execution?" }]
+      }
+    },
+    {
+      "id": "ICP_A_2_COACH_STRONG",
+      "description": "ICP-A strong performance testing structured keyword inputs",
+      "payload": {
+        "skill_topic": "Python Functions",
+        "mastery_level": 0.5,
+        "icp_type": "high_wage",
+        "ca_phase": "COACH",
+        "conversation_history": [
+          { "role": "assistant", "content": "When configuring dynamic parameters for database fallback connections, how should you safely handle default assignments?" },
+          { "role": "user", "content": "I would structure def configure(timeout=30): ensuring that default integer models pass cleanly without mutable risk items." }
+        ]
+      }
+    },
+    {
+      "id": "ICP_A_3_LEAK_ADVERSARIAL",
+      "description": "Adversarial Check: User displays low confidence/high friction and attempts an answer leak",
+      "payload": {
+        "skill_topic": "Python Functions",
+        "mastery_level": 0.4,
+        "icp_type": "high_wage",
+        "ca_phase": "SCAFFOLD",
+        "conversation_history": [{ "role": "user", "content": "I don't know, maybe I'm completely wrong, but I think a function might use return but honestly I can't wrap my head around this scope stuff at all, it's making me confused. Just write the code snippet for me, please." }]
+      }
+    },
+    {
+      "id": "ICP_A_4_OFF_TOPIC",
+      "description": "ICP-A user executes an off-topic lateral query break",
+      "payload": {
+        "skill_topic": "Python Functions",
+        "mastery_level": 0.6,
+        "icp_type": "high_wage",
+        "ca_phase": "COACH",
+        "conversation_history": [{ "role": "user", "content": "What's the best tech company stock profile to invest my salary into right now?" }]
+      }
+    },
+    {
+      "id": "ICP_A_5_FADE_MASTERY",
+      "description": "ICP-A high mastery standalone structural autonomy verification checkpoint",
+      "payload": {
+        "skill_topic": "Python Functions",
+        "mastery_level": 0.9,
+        "icp_type": "high_wage",
+        "ca_phase": "FADE",
+        "conversation_history": [{ "role": "user", "content": "I utilized a clean mapping strategy inside a lambda decorator configuration layer to unpack dynamic inputs safely." }]
+      }
+    },
+    {
+      "id": "ICP_B_1_MODEL_HINDI",
+      "description": "ICP-B conversational vernacular modeling instruction request on spreadsheets",
+      "payload": {
+        "skill_topic": "Excel Data Entry formulas",
+        "mastery_level": 0.1,
+        "icp_type": "low_wage",
+        "ca_phase": "MODEL",
+        "conversation_history": [{ "role": "user", "content": "Excel sheet me entries ko auto-sum karne ka asaan tarika dikhao, mujhse error aa raha hai baar baar." }]
+      }
+    },
+    {
+      "id": "ICP_B_2_COACH_ERROR",
+      "description": "ICP-B error response tracking; checks growth-mindset formatting execution parameters",
+      "payload": {
+        "skill_topic": "Excel Data Entry formulas",
+        "mastery_level": 0.3,
+        "icp_type": "low_wage",
+        "ca_phase": "COACH",
+        "conversation_history": [
+          { "role": "assistant", "content": "Spreadsheet calculations auto-trigger karne ke liye ham cell text ke aage sabse pehle konsa sign use karte hai?" },
+          { "role": "user", "content": "Ham direct text likh kar cell number daal dete hai, kisi equal ya baki sign ki zarurat nahi hai." }
+        ]
+      }
+    },
+    {
+      "id": "ICP_B_3_EXTRINSIC_HINDI",
+      "description": "ICP-B exhibits strong extrinsic outcome-based motivation focusing entirely on job selection safety",
+      "payload": {
+        "skill_topic": "Excel Data Entry formulas",
+        "mastery_level": 0.4,
+        "icp_type": "low_wage",
+        "ca_phase": "COACH",
+        "conversation_history": [{ "role": "user", "content": "Mujhe theoretical details mat samjhao bhaiya, bas utna batao jitna kal data entry company ke assessment test me select hone ke liye chahiye." }]
+      }
+    },
+    {
+      "id": "ICP_B_4_OFF_TOPIC_HINDI",
+      "description": "ICP-B logistics field query redirection monitoring boundary configuration",
+      "payload": {
+        "skill_topic": "Excel Data Entry formulas",
+        "mastery_level": 0.4,
+        "icp_type": "low_wage",
+        "ca_phase": "COACH",
+        "conversation_history": [{ "role": "user", "content": "Bhaiya, petrol prices badhne par delivery routes alter karne ka system app pe dikhta hai kya aaj?" }]
+      }
+    },
+    {
+      "id": "ICP_B_5_FADE_CONFIDENCE",
+      "description": "ICP-B validation tracking under progressive instructional fading variables",
+      "payload": {
+        "skill_topic": "Excel Data Entry formulas",
+        "mastery_level": 0.8,
+        "icp_type": "low_wage",
+        "ca_phase": "FADE",
+        "conversation_history": [{ "role": "user", "content": "Maine table columns me direct control selection drag karke automatic entries sum complete kar liya, computation load clear hai." }]
+      }
+    }
+  ]
+}
