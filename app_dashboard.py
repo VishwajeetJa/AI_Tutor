@@ -78,13 +78,13 @@ with col_voice:
 if raw_user_payload and api_key:
     try:
         with st.spinner("Processing cognitive vectors & structuring multimodal data..."):
-            model = genai.GenerativeModel("gemini-2.5-flash")
+            base_model = genai.GenerativeModel("gemini-2.5-flash")
             
             # --- PHASE A: AUDIO SPEECH-TO-TEXT RESOLUTION ---
             if raw_user_payload["type"] == "audio":
                 audio_part = {"mime_type": "audio/wav", "data": raw_user_payload["data"]}
                 transcription_prompt = "Transcribe this student audio response accurately. Output only the text transcription, nothing else."
-                trans_res = model.generate_content([audio_part, transcription_prompt])
+                trans_res = base_model.generate_content([audio_part, transcription_prompt])
                 processed_text = trans_res.text.strip()
             else:
                 processed_text = raw_user_payload["data"]
@@ -113,12 +113,11 @@ if raw_user_payload and api_key:
             2. If the tier is Low-Wage Tier and cognitive friction is HIGH or user shows linguistic confusion, transition your target register and reply string to Hinglish immediately.
             """
             
-            history_context = f"Full Thread History:\n{json.dumps(st.session_state.chat_history)}\n\nLatest Student Phrase: {processed_text}"
+            # Formulate prompt cleanly by packing system instructions directly inside text payload block
+            combined_analytics_prompt = f"{system_instruction}\n\nFull Thread History:\n{json.dumps(st.session_state.chat_history)}\n\nLatest Student Phrase: {processed_text}"
             
-            # ✅ CORRECTED: system_instruction is passed at top-level here
-            agent_res = model.generate_content(
-                history_context, 
-                system_instruction=system_instruction,
+            agent_res = base_model.generate_content(
+                combined_analytics_prompt, 
                 generation_config={
                     "response_mime_type": "application/json", 
                     "temperature": 0.0
@@ -129,12 +128,10 @@ if raw_user_payload and api_key:
 
             # --- PHASE C: WEB-NATIVE TEXT-TO-SPEECH GENERATION ---
             tts_instruction = "Read the following tutor text out loud with a clear, professional, natural cadence. Do not output anything except raw audio data chunks."
-            tts_prompt = f"Text to speak: {tutor_reply}"
+            combined_tts_prompt = f"{tts_instruction}\n\nText to speak: {tutor_reply}"
             
-            # ✅ CORRECTED: system_instruction is passed at top-level here as well
-            audio_gen_res = model.generate_content(
-                tts_prompt,
-                system_instruction=tts_instruction,
+            audio_gen_res = base_model.generate_content(
+                combined_tts_prompt,
                 generation_config={
                     "response_mime_type": "audio/mp3"
                 }
