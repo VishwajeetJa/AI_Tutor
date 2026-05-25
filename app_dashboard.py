@@ -115,11 +115,12 @@ if raw_user_payload and api_key:
             
             history_context = f"Full Thread History:\n{json.dumps(st.session_state.chat_history)}\n\nLatest Student Phrase: {processed_text}"
             
+            # ✅ CORRECTED: system_instruction is passed at top-level here
             agent_res = model.generate_content(
                 history_context, 
+                system_instruction=system_instruction,
                 generation_config={
                     "response_mime_type": "application/json", 
-                    "system_instruction": system_instruction, 
                     "temperature": 0.0
                 }
             )
@@ -127,10 +128,16 @@ if raw_user_payload and api_key:
             tutor_reply = result.get("tutor_response", "")
 
             # --- PHASE C: WEB-NATIVE TEXT-TO-SPEECH GENERATION ---
-            tts_prompt = f"Read the following tutor text out loud with a clear, professional, natural cadence. Do not output anything except audio. Text: {tutor_reply}"
+            tts_instruction = "Read the following tutor text out loud with a clear, professional, natural cadence. Do not output anything except raw audio data chunks."
+            tts_prompt = f"Text to speak: {tutor_reply}"
+            
+            # ✅ CORRECTED: system_instruction is passed at top-level here as well
             audio_gen_res = model.generate_content(
                 tts_prompt,
-                generation_config={"response_mime_type": "audio/mp3"}
+                system_instruction=tts_instruction,
+                generation_config={
+                    "response_mime_type": "audio/mp3"
+                }
             )
             
             # Extract voice file bytes directly from Gemini content blocks
