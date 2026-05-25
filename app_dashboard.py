@@ -46,10 +46,6 @@ for msg in st.session_state.chat_history:
     with st.chat_message(msg["role"], avatar=avatar):
         tag = f" `[{msg.get('phase', '')}]`" if msg["role"] == "assistant" else ""
         st.markdown(f"**{'Vidya Tutor AI' if msg['role']=='assistant' else 'Student'}{tag}:** {msg['text']}")
-        
-        # If the assistant spoke and has attached voice data, render the native browser audio player
-        if msg["role"] == "assistant" and "audio_bytes" in msg and msg["audio_bytes"]:
-            st.audio(msg["audio_bytes"], format="audio/mp3")
 
 st.markdown("---")
 
@@ -83,7 +79,7 @@ if raw_user_payload and api_key:
             # --- PHASE A: AUDIO SPEECH-TO-TEXT RESOLUTION ---
             if raw_user_payload["type"] == "audio":
                 audio_part = {"mime_type": "audio/wav", "data": raw_user_payload["data"]}
-                transcription_prompt = "Transcribe this student audio response accurately. Output only the text transcription, nothing else."
+                transcription_prompt = "Transcribe this student audio response accurately. Output only the plain text transcription, nothing else."
                 trans_res = base_model.generate_content([audio_part, transcription_prompt])
                 processed_text = trans_res.text.strip()
             else:
@@ -113,7 +109,7 @@ if raw_user_payload and api_key:
             2. If the tier is Low-Wage Tier and cognitive friction is HIGH or user shows linguistic confusion, transition your target register and reply string to Hinglish immediately.
             """
             
-            # Formulate prompt cleanly by packing system instructions directly inside text payload block
+            # Pack instruction safely into content prompt block to bypass version constraints entirely
             combined_analytics_prompt = f"{system_instruction}\n\nFull Thread History:\n{json.dumps(st.session_state.chat_history)}\n\nLatest Student Phrase: {processed_text}"
             
             agent_res = base_model.generate_content(
@@ -126,27 +122,7 @@ if raw_user_payload and api_key:
             result = json.loads(agent_res.text)
             tutor_reply = result.get("tutor_response", "")
 
-            # --- PHASE C: WEB-NATIVE TEXT-TO-SPEECH GENERATION ---
-            tts_instruction = "Read the following tutor text out loud with a clear, professional, natural cadence. Do not output anything except raw audio data chunks."
-            combined_tts_prompt = f"{tts_instruction}\n\nText to speak: {tutor_reply}"
-            
-            audio_gen_res = base_model.generate_content(
-                combined_tts_prompt,
-                generation_config={
-                    "response_mime_type": "audio/mp3"
-                }
-            )
-            
-            # Extract voice file bytes directly from Gemini content blocks
-            voice_bytes = None
-            try:
-                for part in audio_gen_res.candidates[0].content.parts:
-                    if part.inline_data:
-                        voice_bytes = part.inline_data.data
-            except Exception:
-                pass
-
-            # --- PHASE D: ENGINE STATE RETRIEVAL AND UPDATE ---
+            # --- PHASE C: ENGINE STATE RETRIEVAL AND UPDATE ---
             st.session_state.telemetry = {
                 "friction": f"{result.get('cognitive_friction', 'LOW')} 🧠",
                 "confidence": f"{result.get('confidence_level', 'NEUTRAL')} 📊",
@@ -161,8 +137,6 @@ if raw_user_payload and api_key:
                 "text": tutor_reply, 
                 "phase": result.get("pedagogical_phase", "COACH")
             }
-            if voice_bytes:
-                new_assistant_turn["audio_bytes"] = voice_bytes
                 
             st.session_state.chat_history.append(new_assistant_turn)
             st.rerun()
