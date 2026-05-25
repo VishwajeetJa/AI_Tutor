@@ -1,6 +1,8 @@
 import streamlit as st
 import google.generativeai as genai
 from streamlit_mic_recorder import mic_recorder
+from gtts import gTTS
+import io
 import json
 import os
 
@@ -23,24 +25,23 @@ if api_key:
 # --- 3. PERSISTENT STATE MANAGEMENT CHANNELS ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
-        {"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL"}
+        {"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL", "audio_bytes": None}
     ]
 if "telemetry" not in st.session_state:
     st.session_state.telemetry = {
         "friction": "LOW 🟢", "confidence": "NEUTRAL 💾", "motivation": "INTRINSIC 🎯", "frustration": "0/10", "register": "ENGLISH (Formal)", "phase": "MODEL"
     }
-# Robust single-execution gatekeepers to prevent automation replay loops
-if "last_processed_audio_key" not in st.session_state:
-    st.session_state.last_processed_audio_key = None
 if "pending_user_input" not in st.session_state:
     st.session_state.pending_user_input = None
+if "last_processed_audio_key" not in st.session_state:
+    st.session_state.last_processed_audio_key = None
 
 # --- 4. RUNTIME DIAGNOSTICS CONTROL PANEL ---
 st.sidebar.header("🕹️ Global Run Options")
 selected_tier = st.sidebar.selectbox("Student Tier Profile", ["Low-Wage Tier", "High-Wage Tier"])
 
 if st.sidebar.button("🧹 Reset Shared Session"):
-    st.session_state.chat_history = [{"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL"}]
+    st.session_state.chat_history = [{"role": "assistant", "text": "Hi, I am Vidya! Let's jump right into things. Tell me, what do you know about Python functions and execution scopes?", "phase": "MODEL", "audio_bytes": None}]
     st.session_state.telemetry = {"friction": "LOW 🟢", "confidence": "NEUTRAL 💾", "motivation": "INTRINSIC 🎯", "frustration": "0/10", "register": "ENGLISH (Formal)", "phase": "MODEL"}
     st.session_state.last_processed_audio_key = None
     st.session_state.pending_user_input = None
@@ -51,8 +52,13 @@ st.subheader("💬 Active Multi-Turn Script")
 for msg in st.session_state.chat_history:
     avatar = "🤖" if msg["role"] == "assistant" else "👤"
     with st.chat_message(msg["role"], avatar=avatar):
-        tag = f" `[{msg.get('phase', '')}]`" if msg["role"] == "assistant" else ""
+        # Dynamically draw the current cognitive phase label assigned to that specific response
+        tag = f" `[{msg.get('phase', 'COACH')}]`" if msg["role"] == "assistant" else ""
         st.markdown(f"**{'Vidya Tutor AI' if msg['role']=='assistant' else 'Student'}{tag}:** {msg['text']}")
+        
+        # If the response has valid browser audio bytes attached, display the player control block
+        if msg["role"] == "assistant" and msg.get("audio_bytes"):
+            st.audio(msg["audio_bytes"], format="audio/mp3")
 
 st.markdown("---")
 
@@ -61,14 +67,12 @@ st.subheader("📥 Submit Response")
 col_text, col_voice = st.columns([4, 1])
 
 with col_text:
-    # Capture input text directly
     text_input = st.chat_input("Type your answer here...", key="text_chat_input")
     if text_input:
         st.session_state.pending_user_input = {"type": "text", "data": text_input}
         st.rerun()
 
 with col_voice:
-    # Capture microphone voice array directly from client browser engine
     audio_record = mic_recorder(
         start_prompt="🎙️ Click to Record",
         stop_prompt="🛑 Stop Recording",
@@ -78,7 +82,6 @@ with col_voice:
     
     if audio_record and audio_record["bytes"]:
         audio_id = hash(audio_record["bytes"])
-        # Only schedule for inference if this audio file chunk has not been evaluated before
         if audio_id != st.session_state.last_processed_audio_key:
             st.session_state.pending_user_input = {"type": "audio", "data": audio_record["bytes"]}
             st.session_state.last_processed_audio_key = audio_id
@@ -86,7 +89,6 @@ with col_voice:
 
 # --- 7. RECURRENT INFERENCE & COGNITIVE PIPELINE ---
 if st.session_state.pending_user_input and api_key:
-    # Consume the payload immediately to completely eliminate repeat looping bugs
     active_payload = st.session_state.pending_user_input
     st.session_state.pending_user_input = None
     
@@ -122,9 +124,10 @@ if st.session_state.pending_user_input and api_key:
                     "target_register": "ENGLISH or HINGLISH"
                 }}
                 
-                CRITICAL RULES:
-                1. Keep your tutor_response extremely concise, punchy, and dialogic.
-                2. If the tier is Low-Wage Tier and cognitive friction is HIGH or user shows linguistic confusion, transition your target register and reply string to Hinglish immediately.
+                CRITICAL PHASE TRANSITION RULES:
+                1. If the student repeats 'Next' or shows complete confusion, set pedagogical_phase to 'SCAFFOLD' and speak in Hinglish.
+                2. If the student answers confidently and correctly, transition the phase to 'COACH' or 'FADE'.
+                3. Keep your tutor_response extremely concise and dialogic.
                 """
                 
                 combined_analytics_prompt = f"{system_instruction}\n\nFull Thread History:\n{json.dumps(st.session_state.chat_history)}\n\nLatest Student Phrase: {processed_text}"
@@ -138,24 +141,32 @@ if st.session_state.pending_user_input and api_key:
                 )
                 result = json.loads(agent_res.text)
                 tutor_reply = result.get("tutor_response", "")
+                current_phase = result.get("pedagogical_phase", "COACH")
 
-                # --- PHASE C: ENGINE STATE RETRIEVAL AND UPDATE ---
+                # --- PHASE C: HIGH-AVAILABILITY CLOUD TEXT-TO-SPEECH ---
+                # Converts the AI reply text into standard web-playable mp3 format data streams
+                tts = gTTS(text=tutor_reply, lang='en', tld='co.in' if result.get("target_register") == "HINGLISH" else 'com')
+                fp = io.BytesIO()
+                tts.write_to_fp(fp)
+                audio_bytes = fp.getvalue()
+
+                # --- PHASE D: ENGINE STATE RETRIEVAL AND UPDATE ---
                 st.session_state.telemetry = {
                     "friction": f"{result.get('cognitive_friction', 'LOW')} 🧠",
                     "confidence": f"{result.get('confidence_level', 'NEUTRAL')} 📊",
                     "motivation": f"{result.get('motivation_profile', 'INTRINSIC')} 🎯",
                     "frustration": f"{result.get('frustration_index', '0')}/10 ⚠️",
                     "register": result.get('target_register', 'ENGLISH'),
-                    "phase": result.get('pedagogical_phase', 'COACH')
+                    "phase": current_phase
                 }
                 
-                new_assistant_turn = {
+                # Append response containing text, specific adaptive phase, and audio track
+                st.session_state.chat_history.append({
                     "role": "assistant", 
                     "text": tutor_reply, 
-                    "phase": result.get("pedagogical_phase", "COACH")
-                }
-                    
-                st.session_state.chat_history.append(new_assistant_turn)
+                    "phase": current_phase,
+                    "audio_bytes": audio_bytes
+                })
                 st.rerun()
 
     except Exception as e:
