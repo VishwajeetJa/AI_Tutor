@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vidya v3 Terminal Dashboard Build</title>
+    <style>
+        body { background-color: #121212; color: #f5f6fa; font-family: 'Consolas', 'Courier New', monospace; padding: 30px; line-height: 1.6; }
+        .terminal-container { max-width: 1000px; margin: 0 auto; background-color: #1a1a1a; border: 1px solid #333; padding: 25px; border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+        .header-strip { display: flex; justify-content: space-between; border-bottom: 1px dashed #444; padding-bottom: 15px; margin-bottom: 20px; }
+        .title { color: #2ecc71; font-size: 20px; font-weight: bold; }
+        .badge { background: #2c3e50; padding: 4px 12px; border-radius: 4px; font-size: 13px; font-weight: bold; }
+        .badge.active { color: #2ecc71; background: rgba(46,204,113,0.15); border: 1px solid #2ecc71; }
+        
+        .timeline-log { max-height: 500px; overflow-y: auto; margin-bottom: 20px; border-bottom: 1px dashed #444; padding-bottom: 20px; }
+        .block-divider { border-top: 1px dashed #555; margin: 15px 0; }
+        .turn-heading-wrapper { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .tutor-turn { color: #3498db; font-weight: bold; }
+        .tutor-text { color: #ffffff; margin-bottom: 10px; padding-left: 20px; }
+        .user-action { color: #7f8c8d; font-style: italic; font-size: 14px; margin-left: 20px; }
+        .user-speech { color: #e67e22; margin-bottom: 10px; padding-left: 20px; font-weight: bold; }
+        .metadata-line { color: #3498db; font-size: 13px; padding-left: 20px; background: rgba(52,152,219,0.05); margin-top: 5px; }
+
+        .score-box-row { display: flex; gap: 20px; margin-bottom: 25px; }
+        .score-card-element { flex: 1; background: #111; border: 1px solid #222; padding: 15px; border-radius: 4px; }
+        .score-card-element h4 { margin: 0 0 10px 0; font-size: 12px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
+        .score-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
+        .score-lbl { color: #555; }
+        .score-val { color: #fff; font-weight: bold; }
+
+        /* Setup controls arrangement styling configuration panels */
+        .launcher-panel-row { display: flex; gap: 15px; width: 100%; margin-bottom: 20px; }
+        .icp-selector-dropdown { background: #2c3e50; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 0 15px; font-family: inherit; font-size: 15px; font-weight: bold; cursor: pointer; outline: none; }
+
+        .control-panel { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; background: #000000; border: 1px solid #444; padding: 14px; border-radius: 4px; color: #fff; font-family: inherit; font-size: 16px; }
+        button { background: #9b59b6; border: none; border-radius: 4px; color: white; font-family: inherit; padding: 0 25px; font-size: 15px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-mic { background: #2ecc71; width: 100%; padding: 15px; font-size: 16px; margin-bottom: 15px; display: block; }
+        .btn-mic.active { background: #e74c3c; animation: pulseAnimation 1.5s infinite; }
+        
+        .report-card { background: #000; border: 2px solid #2ecc71; padding: 25px; margin-top: 25px; border-radius: 4px; }
+        .report-title { text-align: center; font-size: 18px; color: #fff; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; }
+        .metrics-grid { display: flex; gap: 40px; }
+        .metrics-col { flex: 1; }
+        .metrics-col h3 { color: #2ecc71; font-size: 14px; text-transform: uppercase; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .stat-row { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px; }
+        .stat-label { color: #7f8c8d; }
+        .stat-val { color: #fff; font-weight: bold; }
+        
+        .hidden { display: none !important; }
+        @keyframes pulseAnimation { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="terminal-container">
+    <div class="header-strip">
+        <div class="title">🤖 Vidya v3 Interactive AI Tutor</div>
+        <div style="display: flex; gap: 10px;">
+            <div id="icpDisplay" class="badge" style="color: #e67e22; background: rgba(230,126,34,0.1); border: 1px solid #e67e22;">ICP: INITIALIZING...</div>
+            <div id="turnDisplay" class="badge">TURN 0/10</div>
+            <div id="wsStatus" class="badge">OFFLINE</div>
+        </div>
+    </div>
+
+    <div class="launcher-panel-row" id="setupLauncherControlFrame">
+        <select id="icpSelectionDropdown" class="icp-selector-dropdown">
+            <option value="high_wage" selected>User A: High Wage Tier</option>
+            <option value="low_wage">User B: Low Wage Tier</option>
+        </select>
+        <button id="launchBtn" style="flex: 1; padding: 20px; font-size: 18px;" onclick="bootSessionTimeline()">🚀 INITIALIZE AI tutor</button>
+    </div>
+
+    <div id="appBody" class="hidden">
+        
+        <button id="micBtn" class="btn-mic" onclick="handleMicrophoneClickTrigger()">🎙️ START MICROPHONE SYSTEM</button>
+
+        <div class="control-panel" style="display: none;">
+            <input type="text" id="manualTextBox" placeholder="Or type fallback text string and press send here..." onkeypress="if(event.key==='Enter') dispatchTurnInputText()">
+        </div>
+
+        <div class="score-box-row">
+            <div class="score-card-element">
+                <h4>Observed Psycholinguistic Signals Profile</h4>
+                <div class="score-item"><span class="score-lbl">Confidence:</span><span id="tConfidence" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">Cognitive Friction:</span><span id="tFriction" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">Motivation Mode:</span><span id="tMotivation" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">Engagement Velocity:</span><span id="tVelocity" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">Conceptual Certainty:</span><span id="tCertainty" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">Frustration Index:</span><span id="tFrustration" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">Knowledge Schema Depth:</span><span id="tDepth" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">Linguistic Alignment:</span><span id="tAlignment" class="score-val">-</span></div>
+            </div>
+            <div class="score-card-element">
+                <h4>Layer C Skill Marks (Real-Time Score)</h4>
+                <div class="score-item"><span class="score-lbl">communication:</span><span id="tComm" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">tech_depth:</span><span id="tTech" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">system_design:</span><span id="tDesign" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">behavioural:</span><span id="tBehavioural" class="score-val">-</span></div>
+                <div class="score-item"><span class="score-lbl">delivery:</span><span id="tDelivery" class="score-val">-</span></div>
+            </div>
+        </div>
+
+        <div class="timeline-log" id="terminalTimeline"></div>
+
+        <div id="finalReportArea" class="report-card hidden">
+            <div class="report-title">====================== SESSION FINAL PERFORMANCE REPORT ======================</div>
+            <p id="summaryTextOutput" style="color: #fff; margin-bottom: 20px; border-bottom: 1px dashed #333; padding-bottom: 15px;"></p>
+            
+            <div class="metrics-grid">
+                <div class="metrics-col">
+                    <h3>🧠 CUMULATIVE SIGNAL PROFILE:</h3>
+                    <div class="stat-row"><span class="stat-label">[Primary Confidence Profile]</span><span id="fConfidence" class="stat-val">-</span></div>
+                    <div class="stat-row"><span class="stat-label">[Observed Cognitive Friction]</span><span id="fFriction" class="stat-val">-</span></div>
+                    <div class="stat-row"><span class="stat-label">[Extracted Motivation Mode]</span><span id="fMotivation" class="stat-val">-</span></div>
+                    <div class="stat-row"><span class="stat-label">[Engagement Velocity]</span><span id="fVelocity" class="stat-val">-</span></div>
+                    <div class="stat-row"><span class="stat-label">[Conceptual Certainty]</span><span id="fCertainty" class="stat-val">-</span></div>
+                    <div class="stat-row"><span class="stat-label">[Frustration Index]</span><span id="fFrustration" class="stat-val">-</span></div>
+                </div>
+                <div class="metrics-col">
+                    <h3>📊 OVERALL INTEGRATED SKILL MARKS:</h3>
+                    <div class="stat-row"><span class="stat-label">communication:</span><span id="fComm" class="stat-val">-</span></div>
+                    <div class="stat-row"><span class="stat-label">tech_depth:</span><span id="fTech" class="stat-val">-</span></div>
+                    <div class="stat-row"><span class="stat-label">system_design:</span><span id="fDesign" class="stat-val">-</span></div>
+                    <div class="stat-row"><span class="stat-label">behavioural:</span><span id="fBehavioural" class="stat-val">-</span></div>
+                    <div class="stat-row"><span class="stat-label">delivery:</span><span id="fDelivery" class="stat-val">-</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let ws;
+    let recognition;
+    let isRecording = false;
+    let isProcessingTurn = false; 
+    let currentInputBuffer = "";
+    let highSpeedSilenceTimeout = null;
+    let premiumVoices = [];
+    let selectedIcpType = "high_wage"; // Stores selected value safely in window execution namespace
+
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.getVoices();
+        window.speechSynthesis.onvoiceschanged = () => {
+            premiumVoices = window.speechSynthesis.getVoices();
+        };
+    }
+
+    function bootSessionTimeline() {
+        // Capture chosen value before cleaning the setup layout row
+        selectedIcpType = document.getElementById('icpSelectionDropdown').value;
+        
+        // Update header banner badge layout view right away
+        document.getElementById('icpDisplay').innerText = "ICP: " + selectedIcpType.toUpperCase();
+
+        document.getElementById('setupLauncherControlFrame').classList.add('hidden');
+        document.getElementById('appBody').classList.remove('hidden');
+
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        ws = new WebSocket(protocol + window.location.host + '/ws');
+
+        ws.onopen = () => {
+            document.getElementById('wsStatus').innerText = "ONLINE";
+            document.getElementById('wsStatus').className = "badge active";
+            initSpeechRecognitionEngine();
+        };
+
+        ws.onmessage = (event) => {
+            const payload = JSON.parse(event.data);
+            if (payload.is_session_complete) {
+                handleFinalSessionReportReveal(payload.final_outcome);
+            } else {
+                const oldStatusLines = document.getElementById('statusTrackingLines');
+                if (oldStatusLines) oldStatusLines.remove();
+
+                renderRegularTutorTurnBlock(payload);
+                updateRealtimeTurnScoreDashboard(payload);
+                isProcessingTurn = false; 
+            }
+        };
+    }
+
+    function renderRegularTutorTurnBlock(data) {
+        document.getElementById('turnDisplay').innerText = "TURN " + data.current_turn_count + "/10";
+        const container = document.getElementById('terminalTimeline');
+
+        const turnBlock = document.getElementById('currentActiveTurnBlock');
+        if (turnBlock) turnBlock.removeAttribute('id');
+
+        const block = document.createElement('div');
+        block.id = "currentActiveTurnBlock";
+        block.innerHTML = `
+            <div class="turn-heading-wrapper">
+                <div class="tutor-turn">🔄 [TUTOR TURN ${data.current_turn_count}/10] — Active Phase: ${data.updated_ca_phase}</div>
+                <div class="badge" style="background:#111; border:1px solid #333; font-size:11px; color:#3498db;">Action Target: ${data.suggested_next_action}</div>
+            </div>
+            <div class="tutor-text">🤖 Tutor: ${data.tutor_response}</div>
+            <div class="block-divider"></div>
+        `;
+        container.appendChild(block);
+        container.scrollTop = container.scrollHeight;
+
+        speakTutorTurnAloud(data.tutor_response);
+    }
+
+    function updateRealtimeTurnScoreDashboard(data) {
+        if (data.learner_signals) {
+            document.getElementById('tConfidence').innerText = data.learner_signals.confidence_level;
+            document.getElementById('tFriction').innerText = data.learner_signals.cognitive_friction;
+            document.getElementById('tMotivation').innerText = data.learner_signals.motivation_profile;
+            document.getElementById('tVelocity').innerText = data.learner_signals.engagement_velocity || "-";
+            document.getElementById('tCertainty').innerText = data.learner_signals.conceptual_certainty || "-";
+            document.getElementById('tFrustration').innerText = data.learner_signals.frustration_index || "-";
+            document.getElementById('tDepth').innerText = data.learner_signals.knowledge_retrieval_depth || "-";
+            document.getElementById('tAlignment').innerText = data.learner_signals.linguistic_alignment || "-";
+        }
+        if (data.cumulative_scores) {
+            document.getElementById('tComm').innerText = data.cumulative_scores.communication.toFixed(2) + "/5";
+            document.getElementById('tTech').innerText = data.cumulative_scores.tech_depth.toFixed(2) + "/5";
+            document.getElementById('tDesign').innerText = data.cumulative_scores.system_design.toFixed(2) + "/5";
+            document.getElementById('tBehavioural').innerText = data.cumulative_scores.behavioural.toFixed(2) + "/5";
+            document.getElementById('tDelivery').innerText = data.cumulative_scores.delivery.toFixed(2) + "/5";
+        } else if (data.performance_delta) {
+            document.getElementById('tComm').innerText = data.performance_delta.communication.toFixed(2) + "/5";
+            document.getElementById('tTech').innerText = data.performance_delta.tech_depth.toFixed(2) + "/5";
+            document.getElementById('tDesign').innerText = data.performance_delta.system_design.toFixed(2) + "/5";
+            document.getElementById('tBehavioural').innerText = data.performance_delta.behavioural.toFixed(2) + "/5";
+            document.getElementById('tDelivery').innerText = data.performance_delta.delivery.toFixed(2) + "/5";
+        }
+    }
+
+    function handleFinalSessionReportReveal(outcome) {
+        isRecording = false;
+        if (recognition) recognition.stop();
+        if (highSpeedSilenceTimeout) clearTimeout(highSpeedSilenceTimeout);
+        
+        document.getElementById('micBtn').classList.add('hidden');
+        document.getElementById('turnDisplay').innerText = "COMPLETE";
+        
+        document.getElementById('finalReportArea').classList.remove('hidden');
+        document.getElementById('summaryTextOutput').innerText = outcome.overall_summary || "Session processing complete.";
+
+        if (outcome.final_learner_signals) {
+            const sig = outcome.final_learner_signals;
+            document.getElementById('fConfidence').innerText = sig.confidence_level;
+            document.getElementById('fFriction').innerText = sig.cognitive_friction;
+            document.getElementById('fMotivation').innerText = sig.motivation_profile;
+            document.getElementById('fVelocity').innerText = sig.engagement_velocity;
+            document.getElementById('fCertainty').innerText = sig.conceptual_certainty;
+            document.getElementById('fFrustration').innerText = sig.frustration_index;
+        }
+
+        if (outcome.final_skill_marks) {
+            const marks = outcome.final_skill_marks;
+            document.getElementById('fComm').innerText = marks.communication;
+            document.getElementById('fTech').innerText = marks.tech_depth;
+            document.getElementById('fDesign').innerText = marks.system_design;
+            document.getElementById('fBehavioural').innerText = marks.behavioural;
+            document.getElementById('fDelivery').innerText = marks.delivery;
+        }
+    }
+
+    function initSpeechRecognitionEngine() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        // Persistent accumulator — survives across multiple onresult events
+        let accumulatedFinalTranscript = "";
+
+        recognition.onresult = (event) => {
+            if (isProcessingTurn) return;
+
+            let newFinalChunk = "";
+            let interimTranscript = "";
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    newFinalChunk += event.results[i][0].transcript;
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+
+            // Accumulate confirmed final words permanently across all events
+            if (newFinalChunk.trim() !== "") {
+                accumulatedFinalTranscript = (accumulatedFinalTranscript + " " + newFinalChunk.trim()).trim();
+            }
+
+            // Show live preview: confirmed words + whatever is still being spoken
+            let livePreview = accumulatedFinalTranscript;
+            if (interimTranscript.trim() !== "") {
+                livePreview = (livePreview + " " + interimTranscript.trim()).trim();
+            }
+            if (livePreview !== "") {
+                currentInputBuffer = livePreview;
+                updateLiveSpeechVisualNode(currentInputBuffer);
+            }
+
+            // Only reset silence timer on new confirmed final words — not on every interim flicker
+            if (newFinalChunk.trim() !== "") {
+                if (highSpeedSilenceTimeout) clearTimeout(highSpeedSilenceTimeout);
+                highSpeedSilenceTimeout = setTimeout(() => {
+                    if (isRecording && accumulatedFinalTranscript.trim() !== "" && !isProcessingTurn) {
+                        const payload = accumulatedFinalTranscript.trim();
+                        accumulatedFinalTranscript = "";
+                        dispatchUserInput(payload);
+                    }
+                }, 1800);
+            }
+        };
+
+        recognition.onspeechend = () => {};
+        recognition.onend = () => {
+            if (isRecording && !isProcessingTurn) {
+                recognition.start();
+            }
+        };
+
+        // Expose reset so manual stop can clear accumulated buffer
+        recognition._resetAccumulator = () => { accumulatedFinalTranscript = ""; };
+    }
+
+    // Central dispatch — single place that sends user input and resets all state
+    function dispatchUserInput(text) {
+        if (isProcessingTurn || !text || text.trim() === "") return;
+        isProcessingTurn = true;
+
+        if (highSpeedSilenceTimeout) clearTimeout(highSpeedSilenceTimeout);
+        isRecording = false;
+        recognition.stop();
+        if (recognition._resetAccumulator) recognition._resetAccumulator();
+        currentInputBuffer = "";
+        resetMicButtonVisuals();
+        finalizeSpeechTurnBlock(text.trim());
+
+        // Bundle selected ICP meta-parameters onto your message payloads
+        ws.send(JSON.stringify({
+            "text": text.trim(),
+            "icp_context": selectedIcpType
+        }));
+    }
+
+    function handleMicrophoneClickTrigger() {
+        if (isProcessingTurn) return;
+
+        const btn = document.getElementById('micBtn');
+        if (!isRecording) {
+            isRecording = true;
+            currentInputBuffer = "";
+            if (recognition._resetAccumulator) recognition._resetAccumulator();
+            if (highSpeedSilenceTimeout) clearTimeout(highSpeedSilenceTimeout);
+            recognition.start();
+
+            btn.innerText = "🛑 MIC ACTIVE: SPEAK NOW...";
+            btn.className = "btn-mic active";
+            appendStatusLinesToActiveBlock();
+        } else {
+            // User manually stopped mic — dispatch whatever was captured, don't drop it
+            if (currentInputBuffer.trim() !== "") {
+                dispatchUserInput(currentInputBuffer.trim());
+            } else {
+                isRecording = false;
+                if (highSpeedSilenceTimeout) clearTimeout(highSpeedSilenceTimeout);
+                recognition.stop();
+                resetMicButtonVisuals();
+            }
+        }
+    }
+
+    function resetMicButtonVisuals() {
+        const btn = document.getElementById('micBtn');
+        if (btn) {
+            btn.innerText = "🎙️ CONNECT MICROPHONE SYSTEM";
+            btn.className = "btn-mic";
+        }
+    }
+
+    function appendStatusLinesToActiveBlock() {
+        const block = document.getElementById('currentActiveTurnBlock');
+        if (!block) return;
+
+        const lines = document.createElement('div');
+        lines.id = "statusTrackingLines";
+        lines.innerHTML = `
+            <div class="user-action" id="liveStreamSpeechTextNode">🎙️ Listening now... Speak clearly!</div>
+            <div class="user-action">⚡ Transcribing audio frequencies...</div>
+        `;
+        block.appendChild(lines);
+    }
+
+    function updateLiveSpeechVisualNode(text) {
+        const node = document.getElementById('liveStreamSpeechTextNode');
+        if (node) {
+            node.innerText = "👤 Speaking text: \"" + text + "...\"";
+            node.style.color = "#e67e22";
+            node.style.fontWeight = "bold";
+        }
+    }
+
+    function finalizeSpeechTurnBlock(text) {
+        const block = document.getElementById('currentActiveTurnBlock');
+        const statusLines = document.getElementById('statusTrackingLines');
+        if (statusLines) statusLines.remove();
+
+        if (block) {
+            const speechNode = document.createElement('div');
+            speechNode.className = "user-speech";
+            speechNode.innerText = "👤 You Said: \"" + text + "\"";
+            block.appendChild(speechNode);
+            
+            const metaLine = document.createElement('div');
+            metaLine.className = "metadata-line";
+            metaLine.innerText = "🛡️ [METADATA LOGS] Turn completed. Dispatched to evaluator core engine...";
+            block.appendChild(metaLine);
+        }
+    }
+
+    function speakTutorTurnAloud(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); 
+            
+            if (premiumVoices.length === 0) {
+                premiumVoices = window.speechSynthesis.getVoices();
+            }
+
+            let expressiveText = text
+                .replace(/(\!|\?|\.)\s/g, "$1 ... ") 
+                .replace(/(Hello there|No worries at all|Great|Excellent|Perfect)/gi, "$1! ... ")
+                .replace(/['"\[\]\(\)\{\}_-]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            
+            const utterance = new SpeechSynthesisUtterance(expressiveText);
+            
+            let activeVoice = premiumVoices.find(v => 
+                v.name.includes("Natural") || 
+                v.name.includes("Google US English") || 
+                v.name.includes("Zira") ||
+                v.name.includes("Samantha")
+            );
+            
+            if (!activeVoice && premiumVoices.length > 0) {
+                activeVoice = premiumVoices.find(v => v.lang.startsWith("en"));
+            }
+            
+            if (activeVoice) utterance.voice = activeVoice;
+
+            utterance.pitch = 1.20; 
+            utterance.rate = 0.98;  
+
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+</script>
+</body>
+</html>

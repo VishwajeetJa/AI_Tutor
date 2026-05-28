@@ -27,15 +27,21 @@ GEMINI_API_KEY=your_actual_google_gemini_api_key_here
 
 ---
 
-## 💻 Running the Application
+## Features
+- **Dynamic Phase Shifting:** AI adapts its tutoring style based on learner performance.
+- **Psycholinguistic Profiling:** Real-time analysis of user confidence, motivation, and cognitive friction.
+- **Skill Tracking:** Turn-by-turn performance evaluation across five key axes (Communication, Tech Depth, System Design, Behavioral, Delivery).
+- **Dual ICP Support:** Supports tailored tutoring for High Wage (Software Engineering) and Low Wage (CX/Data Entry) demographics.
 
-To launch the full proof of concept live, open three separate terminal tabs inside VS Code and execute the following:
+## Quick Start
+1. **Clone the repository.**
+2. **Install dependencies:**
+   `pip install -r requirements.txt`
+3. **Configure Environment:** Create a `.env` file and add your Google Gemini API Key:
+   `GEMINI_API_KEY=your_api_key_here`
+4. **Launch:**
+   `uvicorn app.main:app --reload`
+5. **Access:** Open `http://localhost:8000` in your browser.
 
-* Terminal 1 (Backend FastAPI Server):
-uvicorn app.main:app --reload
-
-* Terminal 2 (Streamlit UI Dashboard Frontend):
-streamlit run app_dashboard.py
-
-* Terminal 3 (Voice/Terminal Client Loop):
-python run_tests.py
+## Deployment
+This project is configured for seamless deployment on [Render](https://render.com/). Ensure your `requirements.txt` is updated and push to GitHub to trigger an automatic build.
