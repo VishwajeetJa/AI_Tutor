@@ -72,24 +72,48 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     print("📡 Stateful Multi-Phase Conversation Loop Active.")
 
+    # Fix 3: Keepalive ping task — prevents Render free-tier WebSocket idle timeout (55s default)
+    async def _keepalive_ping():
+        try:
+            while True:
+                await asyncio.sleep(30)
+                await websocket.send_text(json.dumps({"type": "ping"}))
+        except Exception:
+            pass  # Connection closed, task exits silently
+
+    keepalive_task = asyncio.create_task(_keepalive_ping())
+
     # Explicit phase-shifting transition layout constraints mapping
     SYSTEM_PREAMBLE = (
         "You are operating as Vidya AI, a warm coding tutor conducting a strict 10-turn dialogue lesson on Python functions and scopes.\n"
         "Your absolute core directive is to step the student through the Cognitive Apprenticeship (CA) framework.\n\n"
-        "--- CRITICAL CA PHASE SHIFTING LOGIC RULES ---\n"
-        "Analyze the user input on every single turn and update the phase dynamically using these rules:\n"
-        "1. From MODEL to COACH: Shift if the user's answer shows high confidence and zero cognitive friction. (In MODEL phase, you explain and demonstrate thinking aloud).\n"
-        "2. From COACH to SCAFFOLD: Shift if the user answers correctly but displays surface-level hesitation. (In COACH phase, ask targeted diagnostic questions).\n"
-        "3. From SCAFFOLD to FADE: Shift if the user solves technical challenges with structural depth. (In SCAFFOLD phase, provide short hints/cues only).\n"
-        "4. From FADE: Maintain FADE. (In FADE phase, offer minimal intervention, mostly confirming correctness).\n"
-        "5. REGRESSION RULE: If the student shows high frustration or high cognitive friction, immediately drop down by one phase (e.g., COACH down to MODEL) to adapt difficulty.\n\n"
+        "--- CRITICAL CA PHASE SHIFTING LOGIC RULES (DETERMINISTIC — FOLLOW EXACTLY) ---\n"
+        "You MUST evaluate the phase transition on every turn using the strict binary decision tree below.\n"
+        "Do NOT apply subjective judgment. Apply these IF/THEN rules in order and stop at the first match:\n\n"
+        "STEP 1 — CHECK FOR REGRESSION (overrides all progression):\n"
+        "  IF (cognitive_friction == HIGH) OR (frustration_index == HIGH):\n"
+        "    → Regress one phase: MODEL stays MODEL, COACH→MODEL, SCAFFOLD→COACH, FADE→SCAFFOLD.\n"
+        "    → Set updated_ca_phase to the regressed phase. STOP here.\n\n"
+        "STEP 2 — CHECK FOR HOLD (no change):\n"
+        "  IF (conceptual_certainty == CONFUSED):\n"
+        "    → Keep current phase unchanged. STOP here.\n"
+        "  IF (engagement_velocity == DROPPING) AND (frustration_index != LOW):\n"
+        "    → Keep current phase unchanged. STOP here.\n\n"
+        "STEP 3 — CHECK FOR MASTERY PROGRESSION (must satisfy ALL four simultaneously):\n"
+        "  IF (confidence_level == HIGH) AND (cognitive_friction == NONE) AND (conceptual_certainty == ASSERTIVE) AND (frustration_index == LOW):\n"
+        "    → Advance one phase: MODEL→COACH, COACH→SCAFFOLD, SCAFFOLD→FADE, FADE stays FADE.\n"
+        "    → Set updated_ca_phase to the advanced phase. STOP here.\n\n"
+        "STEP 4 — DEFAULT (none of the above conditions matched):\n"
+        "    → Keep current phase unchanged.\n\n"
+        "ANTI-STAGNATION OVERRIDE: If the active phase in context is MODEL or COACH and STEP 3 mastery conditions are ALL met, "
+        "you are REQUIRED to advance the phase. Holding a learner in MODEL or COACH when mastery is confirmed is a calibration failure.\n\n"
         "--- REAL-TIME PSYCHOLINGUISTIC SIGNAL PROFILING CONTROLS ---\n"
-        "Dynamically calculate psycholinguistic signals according to the depth of the user's last answer:\n"
-        "- If user indicates confusion, says 'I don't know', or stalls: confidence_level='LOW', cognitive_friction='HIGH', motivation_profile='DEFENSIVE', conceptual_certainty='CONFUSED'.\n"
-        "- If user demonstrates clear comprehension or answers technical details accurately: confidence_level='HIGH', cognitive_friction='NONE', motivation_profile='INTRINSIC', conceptual_certainty='ASSERTIVE'.\n\n"
+        "Dynamically calculate psycholinguistic signals according to the depth of the user\'s last answer:\n"
+        "- If user indicates confusion, says \'I don\'t know\', or stalls: confidence_level=\'LOW\', cognitive_friction=\'HIGH\', motivation_profile=\'DEFENSIVE\', conceptual_certainty=\'CONFUSED\'.\n"
+        "- If user demonstrates clear comprehension or answers technical details accurately: confidence_level=\'HIGH\', cognitive_friction=\'NONE\', motivation_profile=\'INTRINSIC\', conceptual_certainty=\'ASSERTIVE\'.\n\n"
         "--- SKILL SCORE DELTA RULES (MANDATORY — MUST UPDATE EVERY SINGLE TURN) ---\n"
-        "You MUST return a non-zero performance_delta on EVERY turn based on the user's answer. Never return all zeros.\n"
-        "Calculate a delta between -1.00 and +1.00 for each axis based ONLY on the user's latest reply:\n"
+        "You MUST return a non-zero performance_delta on EVERY turn based on the user\'s answer. Never return all zeros.\n"
+        "Calculate a delta between -1.00 and +1.00 for each axis based ONLY on the user\'s latest reply:\n"
         "- communication: clarity of explanation, vocabulary, sentence structure.\n"
         "- tech_depth: technical accuracy, correct use of Python concepts, syntax knowledge.\n"
         "- behavioural: ownership, persistence, composure, professionalism.\n"
@@ -107,6 +131,8 @@ async def websocket_endpoint(websocket: WebSocket):
     max_turns = 10
     current_phase = "MODEL"
     conversation_history = []
+    # Fix 4: Stateful transition memory — records the "why" behind every phase change for debugging
+    phase_transition_log = []
     
     # Pre-allocate tracking memory to maintain live signal flows seamlessly
     current_signals = {
@@ -235,13 +261,18 @@ async def websocket_endpoint(websocket: WebSocket):
                     f"Active Phase before evaluating this turn was: {current_phase}.\n"
                     f"Current Tracker Signal Metric States: {json.dumps(current_signals)}\n"
                     f"Current Cumulative Skill Scores (running totals so far, each axis clamped to -5.0 to +5.0): {json.dumps(cumulative_scores)}\n"
-                    f"Cumulative Conversation Logs: {json.dumps(conversation_history)}\n\n"
+                    f"Prior Conversation History (context only — do NOT extract signals from this): {json.dumps(conversation_history[:-1])}\n\n"
+                    f"════════════════════════════════════════════════════════════\n"
+                    f"STUDENT'S LATEST REPLY (THIS TURN ONLY — extract ALL learner_signals from THIS text exclusively):\n"
+                    f">>> {user_input} <<<\n"
+                    f"════════════════════════════════════════════════════════════\n\n"
                     f"Action: Step through the transition logic rules carefully. "
-                    f"Examine the student's reply, compute dynamic new turn metrics, output the updated_ca_phase string parameter reflecting the state shift, and ask your follow-up tutoring question.\n"
+                    f"Examine ONLY the student reply above (between the ═══ markers), compute dynamic new turn metrics from that text alone, output the updated_ca_phase string parameter reflecting the state shift, and ask your follow-up tutoring question.\n"
                     f"Output Constraint: Return strictly a valid JSON object in EXACTLY this structure.\n"
                     f"CRITICAL: updated_ca_phase MUST reflect the actual phase shift based on the student's answer — do NOT keep it as MODEL if the student showed confidence. Choose from: MODEL, COACH, SCAFFOLD, FADE.\n"
-                    f"CRITICAL: learner_signals MUST reflect the student's actual response this turn — do NOT copy the example values.\n"
+                    f"CRITICAL: learner_signals MUST be extracted EXCLUSIVELY from the student reply between the ═══ markers above — NOT from the tutor messages, NOT from the history, ONLY from the student's own words this turn.\n"
                     f"CRITICAL: performance_delta values MUST be non-zero for communication and behavioural on every turn.\n"
+                    f"CRITICAL: If the student reply shows clear knowledge (defines a concept, gives an example, explains logic), set confidence_level=HIGH, cognitive_friction=NONE, conceptual_certainty=ASSERTIVE. Do NOT default to LOW/HIGH/CONFUSED without evidence in their words.\n"
                     f"{{\n"
                     f'  "tutor_response": "<your actual 2-3 sentence tutoring reply>",\n'
                     f'  "updated_ca_phase": "<MODEL or COACH or SCAFFOLD or FADE — based on student answer>",\n'
@@ -271,15 +302,89 @@ async def websocket_endpoint(websocket: WebSocket):
                     GLOBAL_GENAI_CLIENT.models.generate_content,
                     model=TARGET_MODEL,
                     contents=turn_prompt,
-                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.4)
+                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
                 )
                 
                 parsed_data = json.loads(response.text.strip())
                 print(f"🤖 AI RAW RESPONSE: {json.dumps(parsed_data)}")
                 
                 # Update loop registers sequentially so runtime values are passed dynamically into subsequent queries
-                current_phase = parsed_data.get("updated_ca_phase", current_phase)
-                current_signals = parsed_data.get("learner_signals", current_signals)
+                ai_proposed_phase = parsed_data.get("updated_ca_phase", current_phase)
+
+                # SIGNAL FIX: Validate and normalize learner_signals from AI before using or sending
+                # Guards against: missing keys, wrong types, AI returning a string instead of dict
+                VALID_SIGNAL_KEYS = {
+                    "confidence_level":         ["LOW", "MEDIUM", "HIGH"],
+                    "motivation_profile":        ["INTRINSIC", "EXTRINSIC", "DEFENSIVE"],
+                    "cognitive_friction":        ["NONE", "MILD", "HIGH"],
+                    "engagement_velocity":       ["ACCELERATING", "STAGNANT", "DROPPING"],
+                    "conceptual_certainty":      ["SPECULATIVE", "ASSERTIVE", "CONFUSED"],
+                    "frustration_index":         ["LOW", "MEDIUM", "HIGH"],
+                    "knowledge_retrieval_depth": ["SURFACE", "STRUCTURAL", "SYNTACTIC"],
+                    "linguistic_alignment":      ["HIGH", "MEDIUM", "LOW"]
+                }
+                raw_signals = parsed_data.get("learner_signals", {})
+                # If AI returned a non-dict (string, None, etc.), discard it entirely
+                if not isinstance(raw_signals, dict):
+                    raw_signals = {}
+                    print(f"⚠️  learner_signals from AI was not a dict — using prior signals")
+                # Build a clean, fully-populated signals dict:
+                # Use AI value if it is a valid enum option, otherwise fall back to prior known-good value
+                normalized_signals = {}
+                for key, valid_options in VALID_SIGNAL_KEYS.items():
+                    ai_val = str(raw_signals.get(key, "")).strip().upper()
+                    if ai_val in valid_options:
+                        normalized_signals[key] = ai_val
+                    else:
+                        # AI gave invalid/missing value — preserve the last known-good signal
+                        normalized_signals[key] = current_signals.get(key, valid_options[0])
+                        if ai_val:
+                            print(f"⚠️  Invalid signal value for {key}: '{ai_val}' — kept prior: {normalized_signals[key]}")
+                # Update current_signals with the clean normalized version
+                current_signals = normalized_signals
+                # Overwrite parsed_data learner_signals with the guaranteed-clean version
+                parsed_data["learner_signals"] = normalized_signals
+                print(f"🧠 SIGNALS: {json.dumps(normalized_signals)}")
+
+                # Fix 1+2: Server-side deterministic phase enforcement — overrides AI variance using same rule tree
+                PHASE_ORDER = ["MODEL", "COACH", "SCAFFOLD", "FADE"]
+                def _enforce_phase(current, signals):
+                    cf = signals.get("cognitive_friction", "NONE")
+                    fi = signals.get("frustration_index", "LOW")
+                    cc = signals.get("conceptual_certainty", "SPECULATIVE")
+                    ev = signals.get("engagement_velocity", "STAGNANT")
+                    cl = signals.get("confidence_level", "MEDIUM")
+                    idx = PHASE_ORDER.index(current) if current in PHASE_ORDER else 0
+                    # Step 1: Regression
+                    if cf == "HIGH" or fi == "HIGH":
+                        return PHASE_ORDER[max(0, idx - 1)], "REGRESSION"
+                    # Step 2: Hold
+                    if cc == "CONFUSED":
+                        return current, "HOLD_CONFUSED"
+                    if ev == "DROPPING" and fi != "LOW":
+                        return current, "HOLD_DROPPING"
+                    # Step 3: Progression
+                    if cl == "HIGH" and cf == "NONE" and cc == "ASSERTIVE" and fi == "LOW":
+                        return PHASE_ORDER[min(3, idx + 1)], "PROGRESSION"
+                    # Step 4: Default
+                    return current, "DEFAULT_HOLD"
+
+                enforced_phase, transition_reason = _enforce_phase(current_phase, current_signals)
+
+                # Fix 4: Log the transition with full signal context for debuggability
+                phase_transition_log.append({
+                    "turn": current_turn,
+                    "phase_before": current_phase,
+                    "ai_proposed": ai_proposed_phase,
+                    "enforced_phase": enforced_phase,
+                    "reason": transition_reason,
+                    "signals_snapshot": dict(current_signals)
+                })
+                print(f"🔀 Phase: {current_phase} → {enforced_phase} (reason={transition_reason}, AI proposed={ai_proposed_phase})")
+
+                # Overwrite AI output with enforced phase to ensure consistency
+                current_phase = enforced_phase
+                parsed_data["updated_ca_phase"] = enforced_phase
                 
                 # Safely extract performance_delta as flat floats regardless of how AI returns it
                 raw_delta = parsed_data.get("performance_delta", {})
@@ -308,11 +413,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 parsed_data["target_icp_type"] = active_icp_selection
                 # Send cumulative scores to frontend so UI always shows running totals
                 parsed_data["cumulative_scores"] = cumulative_scores
+                # Fix 4: Expose transition log so frontend/debug tools can trace every phase decision
+                parsed_data["phase_transition_log"] = phase_transition_log
                 
                 conversation_history.append({"role": "tutor", "content": parsed_data["tutor_response"]})
                 await websocket.send_text(json.dumps(parsed_data))
                 
     except WebSocketDisconnect:
+        keepalive_task.cancel()
         print("🛑 Session disconnected cleanly.")
     except Exception as e:
         print(f"❌ Core pipeline processing exception occurred: {e}")

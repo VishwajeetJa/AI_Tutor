@@ -159,14 +159,40 @@
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         ws = new WebSocket(protocol + window.location.host + '/ws');
 
+        let _reconnectDelay = 1000;
+        let _reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
+
         ws.onopen = () => {
             document.getElementById('wsStatus').innerText = "ONLINE";
             document.getElementById('wsStatus').className = "badge active";
+            _reconnectDelay = 1000;  // Reset backoff on successful connect
+            _reconnectAttempts = 0;
             initSpeechRecognitionEngine();
         };
 
+        // Fix 3: Reconnect with exponential backoff — recovers from Render cold-start idle drops
+        ws.onclose = (event) => {
+            if (event.wasClean || _reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                document.getElementById('wsStatus').innerText = "OFFLINE";
+                document.getElementById('wsStatus').className = "badge";
+                return;
+            }
+            _reconnectAttempts++;
+            document.getElementById('wsStatus').innerText = `RECONNECTING (${_reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`;
+            document.getElementById('wsStatus').className = "badge";
+            setTimeout(() => {
+                const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+                ws = new WebSocket(protocol + window.location.host + '/ws');
+                _reconnectDelay = Math.min(_reconnectDelay * 2, 16000);  // Cap at 16s
+            }, _reconnectDelay);
+        };
+
         ws.onmessage = (event) => {
-            const payload = JSON.parse(event.data);
+            // Fix 3: Silently discard server keepalive pings — they are not turn payloads
+            let payload;
+            try { payload = JSON.parse(event.data); } catch(e) { return; }
+            if (payload.type === "ping") return;
             if (payload.is_session_complete) {
                 handleFinalSessionReportReveal(payload.final_outcome);
             } else {
